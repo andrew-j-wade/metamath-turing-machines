@@ -1,4 +1,6 @@
-with open("blc_pre.nql") as a, open("loader.blc") as b, open("blc.nql", "w") as c:
+from sys import argv
+name = argv[1]
+with open("blc_pre.nql") as a, open(f"{name}.blc") as b, open(f"blc_{name}.nql", "w") as c:
     a2 = a.read()
     b2 = b.read().split("\n")[-1]
     prog = []

@@ -1,2 +1,8 @@
-python3 nqlaconic.py --print-tm blc.nql | wc -l
-python3 nqlaconic.py --print-subs blc.nql > output.txt
+python3 assemble_blc.py loader
+echo -n "Loader:"
+python3 nqlaconic.py --print-tm blc_loader.nql | wc -l
+python3 nqlaconic.py --print-subs blc_loader.nql > output_loader.txt
+python3 assemble_blc.py bms
+echo -n "BMS:   "
+python3 nqlaconic.py --print-tm blc_bms.nql | wc -l
+python3 nqlaconic.py --print-subs blc_bms.nql > output_bms.txt
