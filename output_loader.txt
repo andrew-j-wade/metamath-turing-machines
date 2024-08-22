@@ -1,6 +1,6 @@
 
 main()
-NAME: main() ORDER: 18 EFFICIENCY: 38629 / 262144
+NAME: main() ORDER: 18 EFFICIENCY: 38630 / 262144
     000000000000000000 -> reg_init
     000000000000000001 -> reg_init
     000000000000000010 -> reg_init
@@ -2729,7 +2729,10 @@ NAME: main() ORDER: 18 EFFICIENCY: 38629 / 262144
     100111000001100101 -> reg_incr(_Gt2)
     100111000001100110 -> reg_incr(_Gt2)
     100111000001100111 -> reg_incr(_Gt2)
-    100111000001101    -> noop.3
+    100111000001101000 -> reg_incr(_Gt2)
+    100111000001101001 -> noop.0
+    10011100000110101  -> noop.1
+    1001110000011011   -> noop.2
     10011100000111     -> noop.4
     1001110000100      -> pair(_Grstack,_Grstack,_Gt2)
     1001110000101      -> pair_inc(_Grstacktop,_Gt2,_Grstacktop)
