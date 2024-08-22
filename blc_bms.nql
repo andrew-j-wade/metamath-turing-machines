@@ -1,4 +1,5 @@
 /*
+Haskell code:
 data Term = Lam Term | App Term Term | Var Int
 type Env = [Value]
 data Value = Closure Env Term | Reflect
@@ -9,7 +10,7 @@ eval e (App f x) = vapp (eval e f) (eval e x)
 eval e (Var n) = e !! n
 
 vapp :: Value -> Value -> Value
-vapp Reflect _ = Reflect
+vapp Reflect !_ = Reflect
 vapp (Closure e t) v = eval (v:e) t
 
 quote :: Value -> ()
@@ -25,14 +26,14 @@ Var n = (2,n)
 Reflect = 0
 Closure e t = (e,t)+1
 
-Program stack entries:
-0 = x -> quote x (and exit if x==0)
+Program stack entries (input lstacktop->output lstacktop):
+0 = x -> quote x (and exit if x==0==Reflect)
 (0,e)+1 = t -> eval e t
 (1,(e,x))+1 = f -> vapp f (eval e x)
 (2,(e,t))+1 = x -> vapp (Closure e t) x
 (3,_) = x -> Reflect
 
-Reductions:
+Reductions (lstacktop # rstacktop rstack...):
 Reflect # 0 -> halt
 (Closure e t) # 0 -> Reflect # (2,(e,t))+1 (-> t # (0,(0,e))+1)
 (Lam t) # (0,e)+1 -> (Closure e t) #
@@ -85,7 +86,7 @@ proc push_lam() {
     pair(rstacktop, t2, rstacktop);
 }
 
-/* lstack=((...,x),f)->(...,App f x) */
+/* rstack=((...,x),f)->(...,App f x) */
 proc push_app() {
     t2 = rstacktop;
     rstack_pop();
@@ -100,7 +101,7 @@ proc push_var(v) {
     pair(rstacktop, rstacktop, v);
 }
 
-/* e !! n */
+/* e !! n, all operands distinct */
 proc index_list(e, n, out) {
     while(n > 0){
         unpair(out, e, e);
@@ -109,6 +110,7 @@ proc index_list(e, n, out) {
     unpair(out, e, e);
 }
 
+/* t2 is 0 after this only at the beginning or the end */
 proc stackszero() {
     t2 = 0;
     if(lstacktop > 0){
@@ -149,6 +151,7 @@ proc main() {
                 /* (Lam t) # (0,e)+1 -> (Closure e t) # */
                 /* lstacktop = t, rstacktop = e */
                 pair_inc(lstacktop, rstacktop, lstacktop);
+                /* lstacktop = (e,t)+1 = (Closure e t) */
                 rstack_pop();
             }elsif(t2 == 1){
                 /* (App f x) # (0,e)+1 -> f # (0,e)+1 (1,(e,x))+1 */
@@ -170,6 +173,7 @@ proc main() {
                 /* lstacktop = n, rstacktop = e */
                 builtin_move(t2, lstacktop);
                 index_list(rstacktop, t2, lstacktop);
+                /* lstacktop = e !! n */
                 rstack_pop();
             }
         }elsif(t2 == 1){
@@ -179,6 +183,7 @@ proc main() {
                 /* lstacktop = 0, rstacktop = (e,x) */
                 unpair(rstacktop, lstacktop, rstacktop);
                 /* lstacktop = x, rstacktop = e */
+                /* t2 = 1 */
                 t2 = t2 + 8;
                 /* t2 = (3,0) */
                 pair(rstack, rstack, t2);
