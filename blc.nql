@@ -109,7 +109,10 @@ proc index_list(e, n, out) {
 }
 
 proc stackszero() {
-    t2 = lstacktop;
+    t2 = 0;
+    if(lstacktop > 0){
+        t2 = t2 + 1;
+    }
     if(rstacktop > 0){
         t2 = t2 + 1;
     }
