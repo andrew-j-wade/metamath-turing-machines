@@ -109,7 +109,10 @@ class NatExpr(Node):
         """Returns the set of registers that are (explicitly) used in this expression."""
         regs = set()
         for child in self.children:
+            if child.used_regs() is None:
+                print(child, child.used_regs())
             regs |= child.used_regs()
+        return regs
 
 class Reg(NatExpr):
     def __init__(self, **kwargs):
