@@ -30,6 +30,7 @@ Program stack entries:
 (0,e)+1 = t -> eval e t
 (1,(e,x))+1 = f -> vapp f (eval e x)
 (2,(e,t))+1 = x -> vapp (Closure e t) x
+(3,_) = x -> Reflect
 
 Reductions:
 Reflect # 0 -> halt
@@ -37,9 +38,10 @@ Reflect # 0 -> halt
 (Lam t) # (0,e)+1 -> (Closure e t) #
 (App f x) # (0,e)+1 -> f # (0,e)+1 (1,(e,x))+1
 (Var n) # (0,e)+1 -> e!!n #
-Reflect # (1,(e,x))+1 -> Reflect #
+Reflect # (1,(e,x))+1 -> x # (0,e)+1 (3,_)
 (Closure e t) # (1,(e',x))+1 -> x # (0,e')+1 (2,(e,t))+1
 x # (2,(e,t))+1 -> t # (0,(x,e))+1
+x # (3,_) -> Reflect #
 */
 
 /* Cantor pair manipulation proctions */
@@ -67,7 +69,6 @@ global rstack;
 global rstacktop;
 global t2;
 global t3;
-global t4;
 
 /* Stack manipulation */
 proc rstack_push() {
@@ -174,8 +175,17 @@ proc main() {
         }elsif(t2 == 1){
             /* 1 = vapp eval */
             if(lstacktop == 0){
-                /* Reflect # (1,(e,x))+1 -> Reflect # */
-                rstack_pop();
+                /* Reflect # (1,(e,x))+1 -> x # (0,e)+1 (3,_) */
+                /* lstacktop = 0, rstacktop = (e,x) */
+                unpair(rstacktop, lstacktop, rstacktop);
+                /* lstacktop = x, rstacktop = e */
+                t2 = t2 + 8;
+                /* t2 = (3,0) */
+                pair(rstack, rstack, t2);
+                /* rstack = (3,0) ... */
+                /* t2 = 0 */
+                pair_inc(rstacktop, t2, rstacktop);
+                /* rstacktop = (0,e)+1 */
             }else{
                 /* (Closure e t) # (1,(e',x))+1 -> x # (0,e')+1 (2,(e,t))+1 */
                 /* lstacktop = (e,t)+1, rstacktop = (e',x) */
@@ -192,7 +202,7 @@ proc main() {
                 pair_inc(rstacktop, t2, rstacktop);
                 /* rstacktop = (0,e')+1 */
             }
-        }else{
+        }elsif(t2 == 2){
             /* 2 = vapp Closure */
             /* x # (2,(e,t))+1 -> t # (0,(x,e))+1 */
             /* lstacktop = x, rstacktop = (e,t) */
@@ -205,6 +215,9 @@ proc main() {
             /* t2 = 0 */
             pair_inc(rstacktop, t2, rstacktop);
             /* rstacktop = (0,(x,e))+1 */
+        }else{
+            /* 3 = const Reflect */
+            lstacktop = 0;
         }
     }
     /* done? */
