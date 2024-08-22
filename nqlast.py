@@ -104,6 +104,12 @@ class NatExpr(Node):
     def is_additive(self):
         """Returns True if emit_nat actually just adds and is safe for non-zero targets."""
         return False
+    
+    def used_regs(self):
+        """Returns the set of registers that are (explicitly) used in this expression."""
+        regs = set()
+        for child in self.children:
+            regs |= child.used_regs()
 
 class Reg(NatExpr):
     def __init__(self, **kwargs):
@@ -119,6 +125,9 @@ class Reg(NatExpr):
         state.emit_transfer(reg, target, save)
         state.emit_transfer(save, reg)
         state.put_temp(save)
+
+    def used_regs(self):
+        return set(self.name)
 
 class Mul(NatExpr):
     child_types = (NatExpr, NatExpr)
@@ -385,8 +394,6 @@ class VoidExpr(Node):
 
 class Assign(VoidExpr):
     child_types = (Reg, NatExpr)
-    # TODO: augmented additions and subtractions can be peepholed to remove the temporary
-    # TODO: when assigning something that doesn't use the old value, it can be constructed in place
 
     def emit_aug_op(self, state, lhs, rhs):
         if not (isinstance(rhs, Add) or isinstance(rhs, Monus)):
@@ -418,6 +425,8 @@ class Assign(VoidExpr):
             rhs.emit_nat(state, state.resolve(lhs.name))
         elif self.emit_aug_op(state, lhs, rhs):
             pass
+        elif lhs.name not in rhs.used_regs():
+            rhs.emit_nat(state, state.resolve(lhs.name))
         else:
             temp = state.get_temp()
             rhs.emit_nat(state, temp)
