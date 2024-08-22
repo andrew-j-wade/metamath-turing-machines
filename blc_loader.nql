@@ -103,9 +103,9 @@ proc push_var(v) {
 
 /* e !! n, all operands distinct */
 proc index_list(e, n, out) {
-    while(n > 0){
+    /* decz n = (n-- == 0) */
+    while(!decz n){
         unpair(out, e, e);
-        n = n - 1;
     }
     unpair(out, e, e);
 }
@@ -132,28 +132,31 @@ proc main() {
         rstacktop = rstacktop + 1;
     }
     /* apply a reduction */
-    if(rstacktop == 0){
+    if(decz rstacktop){
         /* 0 = quote */
-        if(lstacktop != 0){
+        if(!decz lstacktop){
             /* (Closure e t) # 0 -> Reflect # (2,(e,t))+1 */
+            /* lstacktop = (e,t) */
             t2 = 2;
-            lstacktop = lstacktop - 1;
             pair_inc(rstacktop, t2, lstacktop);
             /* lstacktop = 0 */
         }
         /* Reflect # 0 -> halt is handled elsewhere */
     }else{
-        unpair_dec(t2, rstacktop, rstacktop);
-        if(t2 == 0){
+        unpair(t2, rstacktop, rstacktop);
+        switch(t2){
+        case 0:
             /* 0 = eval */
             unpair(t2, lstacktop, lstacktop);
-            if(t2 == 0){
+            switch(t2){
+            case 0:
                 /* (Lam t) # (0,e)+1 -> (Closure e t) # */
                 /* lstacktop = t, rstacktop = e */
                 pair_inc(lstacktop, rstacktop, lstacktop);
                 /* lstacktop = (e,t)+1 = (Closure e t) */
                 rstack_pop();
-            }elsif(t2 == 1){
+                break;
+            case 1:
                 /* (App f x) # (0,e)+1 -> f # (0,e)+1 (1,(e,x))+1 */
                 /* lstacktop = (f,x), rstacktop = e */
                 unpair(lstacktop, t2, lstacktop);
@@ -168,17 +171,20 @@ proc main() {
                 /* t2 = 0 */
                 pair_inc(rstacktop, t2, rstacktop);
                 /* rstacktop = (0,e)+1 */
-            }else{
+                break;
+            default:
                 /* (Var n) # (0,e)+1 -> e!!n # */
                 /* lstacktop = n, rstacktop = e */
                 builtin_move(t2, lstacktop);
                 index_list(rstacktop, t2, lstacktop);
                 /* lstacktop = e !! n */
                 rstack_pop();
+                break;
             }
-        }elsif(t2 == 1){
+            break;
+        case 1:
             /* 1 = vapp eval */
-            if(lstacktop == 0){
+            if(decz lstacktop){
                 /* Reflect # (1,(e,x))+1 -> x # (0,e)+1 (3,_) */
                 /* lstacktop = 0, rstacktop = (e,x) */
                 unpair(rstacktop, lstacktop, rstacktop);
@@ -193,9 +199,7 @@ proc main() {
                 /* rstacktop = (0,e)+1 */
             }else{
                 /* (Closure e t) # (1,(e',x))+1 -> x # (0,e')+1 (2,(e,t))+1 */
-                /* lstacktop = (e,t)+1, rstacktop = (e',x) */
-                lstacktop = lstacktop - 1;
-                /* lstacktop = (e,t) */
+                /* lstacktop = (e,t), rstacktop = (e',x) */
                 t2 = 2;
                 pair_inc(t2, t2, lstacktop);
                 /* t2 = (2,(e,t))+1 */
@@ -207,7 +211,8 @@ proc main() {
                 pair_inc(rstacktop, t2, rstacktop);
                 /* rstacktop = (0,e')+1 */
             }
-        }elsif(t2 == 2){
+            break;
+        case 2:
             /* 2 = vapp Closure */
             /* x # (2,(e,t))+1 -> t # (0,(x,e))+1 */
             /* lstacktop = x, rstacktop = (e,t) */
@@ -220,9 +225,11 @@ proc main() {
             /* t2 = 0 */
             pair_inc(rstacktop, t2, rstacktop);
             /* rstacktop = (0,(x,e))+1 */
-        }else{
+            break;
+        default:
             /* 3 = const Reflect */
             lstacktop = 0;
+            break;
         }
     }
     /* done? */

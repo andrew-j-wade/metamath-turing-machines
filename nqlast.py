@@ -19,6 +19,8 @@ class Node:
         if isinstance(self.child_types, tuple):
             assert len(self.children) == len(self.child_types)
             for child, ctype in zip(self.children, self.child_types):
+                if not isinstance(child, ctype):
+                    print(child, ctype)
                 assert isinstance(child, ctype)
         else:
             for child in self.children:
@@ -359,6 +361,20 @@ class Not(BoolExpr):
 
     def emit_test(self, state, label, invert):
         self.children[0].emit_test(state, label, not invert)
+    
+class DecZ(BoolExpr):
+    """Decrement the argument register and jump if it was zero."""
+
+    child_types = (Reg,)
+
+    def emit_test(self, state, target, invert):
+        arg = self.children[0]
+        no_jump = state.gensym()
+        state.emit_dec(state.resolve(arg.name))
+        if invert:
+            state.emit_goto(no_jump)
+        state.emit_goto(target)
+        state.emit_label(no_jump)
 
 class And(BoolExpr):
     child_types = (BoolExpr,BoolExpr)
