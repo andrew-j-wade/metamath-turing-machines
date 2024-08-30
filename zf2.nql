@@ -346,9 +346,7 @@ proc par3() { pushwff(); topwff = param3; align_7(); }
 /* pop element under top earlier, pop top later */
 proc select() {
     unpair(t2, wffstack, wffstack);
-    if (axiomcode > 0) {
-        axiomcode = axiomcode - 1;
-    } else {
+    if (decz axiomcode) {
         builtin_move(topwff, t2);
     }
     /* align_7(); */
@@ -373,11 +371,10 @@ proc safety(p1, p2){
 }
 
 proc main() {
-    if (prooflist == 0) {
+    if (decz prooflist) {
         prooflist = nextproof;
         nextproof = nextproof + 1;
     }
-    prooflist = prooflist - 1;
 
     unpair(t2, prooflist, prooflist); builtin_move(axiomcode, t2);
     unpair(t2, prooflist, prooflist); builtin_move(param1, t2);
@@ -388,11 +385,11 @@ proc main() {
     /* no select since if axiomcode=0 all selects reject the new entry */
     par1(); par2(); wim(); par2(); par3(); wim(); par1(); par3(); wim(); wim(); wim();
 
-    /* B2 */
-    par1(); wn(); par1(); wim(); par1(); wim(); select();
-
     /* B3 */
     par1(); par1(); wn(); par2(); wim(); wim(); select();
+
+    /* B2 */
+    par1(); wn(); par1(); wim(); par1(); wim(); select();
 
     /* B4 */
     par1(); par2(); par3(); wim(); wal(); par1(); par2(); wal(); par1(); par3(); wal(); wim(); wim(); select();
@@ -413,11 +410,11 @@ proc main() {
     
     par1(); par2(); weq();  par1(); par3(); weq();  par2(); par3(); weq(); wim(); wim();  select();
 
-    /* B7 */
-    par1(); par1(); par2(); weq(); wex(); select();
-
     /* B8c */
     par1(); par2(); weq();  par3(); par1(); wel();  par3(); par2(); wel(); wim(); wim();  select();
+
+    /* B7 */
+    par1(); par1(); par2(); weq(); wex(); select();
 
     /* EXT */
     /* requires B8a */

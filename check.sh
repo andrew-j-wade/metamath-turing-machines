@@ -1,3 +1,6 @@
+echo -n "ZFC:       "
+python3 nqlaconic.py --print-tm zf2.nql | wc -l
+python3 nqlaconic.py --print-subs zf2.nql > output_zf2.txt
 python3 assemble_blc.py loader
 echo -n "Loader:    "
 python3 nqlaconic.py --print-tm blc_loader.nql | wc -l
