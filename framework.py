@@ -519,6 +519,7 @@ class MachineBuilder:
             Goto('zero'),
             *([tox.inc for tox in sorted(to)] + [
                 Goto('again'),
+                Align(4),
                 Label('zero'),
             ]),
             name=name
