@@ -629,9 +629,12 @@ class Machine:
                             state.move1 = state.next1.next0.move1
                             state.next1 = state.next1.next0.next1
 
-                if tup != (state.next0, state.next1, state.write0, state.write1,
-                           state.move0, state.move1):
-                    did_work = True
+            # It's possible that the optimization might leave state unchanged.
+            # (Though this would imply the TM would spin between two states making no progress at this point)
+            # Check if there was actually a change.
+            if tup != (state.next0, state.next1, state.write0, state.write1,
+                       state.move0, state.move1):
+                did_work = True
 
         return did_work
 
