@@ -549,7 +549,8 @@ class Machine:
         """Processes command line arguments and runs the test harness for a machine."""
 
         if not args.dont_compress:
-            self.compress()
+            while self.compress() or self.skip_noop_transitions():
+                pass
 
         if args.print_subs:
             self.print_subs()
@@ -563,33 +564,76 @@ class Machine:
 
     def compress(self):
         """Combine pairs of equivalent states in the turing machine."""
-        while True:
-            did_work = False
-            unique_map = {}
-            replacement_map = {}
+        did_work = False
+        unique_map = {}
+        replacement_map = {}
 
-            for state in self.reachable():
-                tup = (state.next0, state.next1, state.write0, state.write1,
-                       state.move0, state.move1)
-                if tup in unique_map:
-                    replacement_map[state] = unique_map[tup]
-                else:
-                    unique_map[tup] = state
+        for state in self.reachable():
+            tup = (state.next0, state.next1, state.write0, state.write1,
+                   state.move0, state.move1)
+            if tup in unique_map:
+                replacement_map[state] = unique_map[tup]
+            else:
+                unique_map[tup] = state
 
-            for state in self.reachable():
-                if state.next0 in replacement_map:
-                    did_work = True
-                    state.next0 = replacement_map[state.next0]
-                if state.next1 in replacement_map:
-                    did_work = True
-                    state.next1 = replacement_map[state.next1]
-
-            if self.entry in replacement_map:
+        for state in self.reachable():
+            if state.next0 in replacement_map:
                 did_work = True
-                self.entry = replacement_map[self.entry]
+                state.next0 = replacement_map[state.next0]
+            if state.next1 in replacement_map:
+                did_work = True
+                state.next1 = replacement_map[state.next1]
 
-            if not did_work:
-                break
+        if self.entry in replacement_map:
+            did_work = True
+            self.entry = replacement_map[self.entry]
+        return did_work
+
+    def skip_noop_transitions(self):
+        """Skip past state transitions that only return the tape head without updates or branching."""
+        did_work = False
+
+        for state in self.reachable():
+            tup = (state.next0, state.next1, state.write0, state.write1,
+                   state.move0, state.move1)
+
+            if not isinstance(state.next0, Halt) and state.next0.set \
+                and not isinstance(state.next0.next0, Halt) and state.next0.next0.set:
+                if state.next0.next0 is state.next0.next1 and \
+                    state.next0.write0 == '0' and state.next0.write1 == '1' and \
+                    state.next0.move0 == -state.move0 and \
+                    state.next0.move1 == -state.move0:
+
+                    if state.write0 == '0':
+                        state.write0 = state.next0.next0.write0
+                        state.move0 = state.next0.next0.move0
+                        state.next0 = state.next0.next0.next0
+                    else:
+                        state.write0 = state.next0.next0.write1
+                        state.move0 = state.next0.next0.move1
+                        state.next0 = state.next0.next0.next1
+
+            if not isinstance(state.next1, Halt) and state.next1.set \
+                and not isinstance(state.next1.next0, Halt) and state.next1.next0.set:
+                if state.next1.next0 is state.next1.next1 and \
+                    state.next1.write0 == '0' and state.next1.write1 == '1' and \
+                    state.next1.move0 == -state.move1 and \
+                    state.next1.move1 == -state.move1:
+
+                        if state.write1 == '0':
+                            state.write1 = state.next1.next0.write0
+                            state.move1 = state.next1.next0.move0
+                            state.next1 = state.next1.next0.next0
+                        else:
+                            state.write1 = state.next1.next0.write1
+                            state.move1 = state.next1.next0.move1
+                            state.next1 = state.next1.next0.next1
+
+                if tup != (state.next0, state.next1, state.write0, state.write1,
+                           state.move0, state.move1):
+                    did_work = True
+
+        return did_work
 
     def print_subs(self):
         """Dump the subroutines used by this machine."""
