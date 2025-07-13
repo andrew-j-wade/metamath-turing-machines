@@ -141,10 +141,13 @@ def cfg_optimizer(parts):
 
     # Thread jumps to jumps
     # Delete jumps to the next instruction
+    # Jumps to the Halt instruction should just Halt instead.
+
     counter = 0
     label_map = {}
     rlabel_map = {}
     goto_map = {}
+    halt_set = set()
     labels = []
     for insn in parts:
         if isinstance(insn, Label):
@@ -156,6 +159,8 @@ def cfg_optimizer(parts):
             labels = []
             if isinstance(insn, Goto):
                 goto_map[counter] = insn.name
+            if isinstance(insn, Subroutine) and insn.name == 'halt':
+                halt_set.add(counter)
             counter += 1
     for label in labels:
         label_map[label] = counter
@@ -181,8 +186,12 @@ def cfg_optimizer(parts):
             # print("CFGO", insn.name, counter, goes_to, next_goes_to)
             if goes_to == counter + 1 or goes_to == next_goes_to:
                 parts[index] = None
-            elif direct_goes_to != goes_to:
-                parts[index] = Goto(rlabel_map[goes_to])
+            else:
+                if goes_to in halt_set:
+                    parts[index] = Subroutine(Halt(), 0, 'halt')
+                    pass
+                elif direct_goes_to != goes_to:
+                    parts[index] = Goto(rlabel_map[goes_to])
         counter += 1
 
     # print(repr(parts))
