@@ -558,7 +558,7 @@ class Machine:
             assert False
 
         self.builder.dispatchroot().clone(self.main.entry)
-        self.entry = self.builder.dispatch_order(self.builder.pc_bits, 0)
+        self.entry = self.builder.dispatch_order(self.builder.pc_bits, 0).next0
 
         self.state = self.entry
         self.left_tape = []
@@ -798,8 +798,10 @@ class Machine:
             index[state.name] = index.get(state.name, 0) + 1
             renumber[state] = state.name + '(#' + str(index[state.name]) + ')'
 
+        renumber[self.entry] = renumber.setdefault(self.entry, self.entry.name) + '(entry)'
+
         dirmap = {1: 'r', -1: 'l'}
-        for state in sorted(self.reachable(), key=lambda x: x.name):
+        for state in sorted(self.reachable(), key=lambda x: x.name if x is not self.entry else ''):
             print(renumber.get(state, state.name), '=',
                   state.write0, dirmap[state.move0], renumber.get(state.next0, state.next0.name),
                   state.write1, dirmap[state.move1], renumber.get(state.next1, state.next1.name))
