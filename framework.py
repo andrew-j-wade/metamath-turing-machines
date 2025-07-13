@@ -116,6 +116,7 @@ class Align:
     def __init__(self, align):
         self.size = 0
         self.alignment = align
+        self.is_decrement = False
 
 InsnInfo = namedtuple('InsnInfo', 'sub labels goto')
 
@@ -198,30 +199,34 @@ def cfg_optimizer(parts):
 
     # Delete dead code
 
-    # label_to_index = {}
-    # for index, insn in enumerate(parts):
-    #     if isinstance(insn, Label):
-    #         label_to_index[insn.name] = index
+    label_to_index = {}
+    for index, insn in enumerate(parts):
+        if isinstance(insn, Label):
+            label_to_index[insn.name] = index
 
-    # grey_index = [0]
-    # black_index = set()
-    # while grey_index:
-    #     ix = grey_index.pop()
-    #     if ix in black_index or ix >= len(parts):
-    #         continue
-    #     black_index.add(ix)
+    grey_index = [0]
+    black_index = set()
+    while grey_index:
+        ix = grey_index.pop()
+        if ix in black_index or ix >= len(parts):
+            continue
+        black_index.add(ix)
 
-    #     if isinstance(insn, Goto):
-    #         grey_index.append(label_to_index[insn.name])
-    #     else:
-    #         grey_index.append(ix + 1)
-    #         if insn and insn.is_decrement:
-    #             grey_index.append(ix + 2)
+        if isinstance(parts[ix], Goto):
+            grey_index.append(label_to_index[parts[ix].name])
+        else:
+            grey_index.append(ix + 1)
+            if parts[ix] and parts[ix].is_decrement:
+                # mark one past the first real instruction
+                ix = ix + 1
+                while ix < len(parts) and (isinstance(parts[ix], Label) or isinstance(parts[ix], Align)):
+                    ix = ix + 1
+                    grey_index.append(ix)
+                grey_index.append(ix + 1)
 
-    # for index in range(len(parts)):
-    #     if index not in black_index:
-    #         print("DEAD CODE")
-    #         parts[index] = None
+    for index in range(len(parts)):
+        if index not in black_index and not isinstance(parts[index], Align):
+             parts[index] = None
 
     return tuple(p for p in parts if p)
 
@@ -410,6 +415,9 @@ class MachineBuilder:
         offset = 0
 
         if not self.control_args.no_cfg_optimize:
+            # run the optimizer twice as the dead code elimination can open up
+            # more goto optimization opertunities.
+            parts = cfg_optimizer(parts)
             parts = cfg_optimizer(parts)
 
         if name == 'main()':
