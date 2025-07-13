@@ -34,12 +34,15 @@ class State:
 
     def be(self, name, move=None, next=None, write=None,
            move0=None, next0=None, write0=None,
-           move1=None, next1=None, write1=None):
+           move1=None, next1=None, write1=None,
+           old_tape=None):
         """Defines a Turing machine state.
 
         The movement direction, next state, and new tape value can be defined
         depending on the old tape value, or for both tape values at the same time.
-        Next state and direction must be provided, tape value can be omitted for no change."""
+        Next state and direction must be provided, tape value can be omitted for no change.
+        The set of possible tape values this state can encounter can also be recorded
+        allowing for future optimization."""
         assert not self.set
         self.set = True
         self.name = name
@@ -49,10 +52,12 @@ class State:
         self.next1 = next1 or next
         self.write0 = write0 or write or '0'
         self.write1 = write1 or write or '1'
+        self.old_tape = old_tape or set(('0', '1'))
         assert self.move0 in (-1, 1)
         assert self.move1 in (-1, 1)
         assert self.write0 in ('0', '1')
         assert self.write1 in ('0', '1')
+        assert all(bit in ('0', '1') for bit in self.old_tape)
         assert isinstance(self.name, str)
         assert isinstance(self.next0, State) or isinstance(self.next0, Halt)
         assert isinstance(self.next1, State) or isinstance(self.next1, Halt)
@@ -62,7 +67,7 @@ class State:
         assert isinstance(other, State) and other.set
         self.be(name=other.name, move0=other.move0, next0=other.next0,
                 write0=other.write0, move1=other.move1, next1=other.next1,
-                write1=other.write1)
+                write1=other.write1, old_tape=other.old_tape.copy())
 
 def make_bits(num, bits):
     """Constructs a bit string of length=bits for an integer num."""
@@ -369,7 +374,7 @@ class MachineBuilder:
         return Subroutine(Halt(), 0, 'halt')
 
     @memo
-    def jump(self, order, rel_pc, sub_name):
+    def jump(self, order, rel_pc, from_pc, sub_name):
         """A subprogram which replaces a suffix of the PC, for relative jumps.
 
         Used automatically by the Goto operator."""
@@ -377,13 +382,15 @@ class MachineBuilder:
         steps = [State() for i in range(order + 2)]
         steps[order+1] = self.dispatch_order(order, rel_pc >> order)
         steps[0].be(move=-1, next=steps[1], \
-            name='{}.jump({},{},{})'.format(sub_name, rel_pc, order, 0))
+            name='{}.jump({},{},{},{})'.format(sub_name, rel_pc, from_pc, order, 0))
         for i in range(order):
             bit = str((rel_pc >> i) & 1)
+            from_bit = str((from_pc >> i) & 1)
             steps[i+1].be(move=-1, next=steps[i+2], write=bit, \
-                name='{}.jump({},{},{})'.format(sub_name, rel_pc, order, i+1))
+                old_tape=set((from_bit)), \
+                name='{}.jump({},{},{},{})'.format(sub_name, rel_pc, from_pc, order, i+1))
 
-        return Subroutine(steps[0], 0, '{}.jump({},{})'.format(sub_name, rel_pc, order))
+        return Subroutine(steps[0], 0, '{}.jump({},{},{})'.format(sub_name, rel_pc, from_pc, order))
 
     @memo
     def rjump(self, rel_pc):
@@ -492,12 +499,8 @@ class MachineBuilder:
                         base = (offset >> jump_order) << jump_order
                         rel = target - base
                         if (jump_order, rel) in jumps_required:
-                            part = self.jump(jump_order, rel, name)
+                            part = self.jump(jump_order, rel, offset, name)
                             # don't break, we want to take the largest reqd jump
-                            # except for very short jumps, those have low enough
-                            # entropy to be worthwhile
-                            if jump_order < 3:
-                                break
                     assert part
             offset_bits = make_bits(offset >> part.order, order - part.order)
             goto_line = goto_map.get(offset)
@@ -567,8 +570,19 @@ class Machine:
         """Processes command line arguments and runs the test harness for a machine."""
 
         if not args.dont_compress:
-            while self.compress() or self.skip_noop_transitions():
-                pass
+            while True:
+                # The different optimization passes will interact with each other.
+                # Continue optimizing so long as we're making forward progress.
+                # combine_states returns after the first opportunity it finds,
+                # but this is intended for small TMs so the quadratic complexity
+                # shouldn't matter.
+                if self.compress():
+                    continue
+                if self.skip_noop_transitions():
+                    continue
+                if self.combine_states():
+                    continue
+                break
 
         if args.print_subs:
             self.print_subs()
@@ -590,6 +604,7 @@ class Machine:
             tup = (state.next0, state.next1, state.write0, state.write1,
                    state.move0, state.move1)
             if tup in unique_map:
+                unique_map[tup].old_tape = unique_map[tup].old_tape | state.old_tape
                 replacement_map[state] = unique_map[tup]
             else:
                 unique_map[tup] = state
@@ -606,6 +621,54 @@ class Machine:
             did_work = True
             self.entry = replacement_map[self.entry]
         return did_work
+
+    def combine_states(self):
+        """Finds a pair of states with opposite tape liveness and updates them
+        to match each other."""
+
+        # Prefer to merge states where a parent states will thereby become compressable.
+        state_map = {}
+
+        #But if not merge any old_tape '0' with any old_tape '1' state
+        all_map = {'0': [], '1': []}
+
+        for state in self.reachable():
+            if state.next0 is state.next1:
+                tup = (state.write0, state.write1, state.move0, state.move1)
+                if len(state.next0.old_tape) == 1:
+                    for bit in state.next0.old_tape:
+                        state_map.setdefault(tup, {'0': [], '1': []})[bit].append(state.next0)
+            if len(state.old_tape) == 1:
+                for bit in state.old_tape:
+                    all_map[bit].append(state)
+
+        state0 = None
+        state1 = None
+        if all_map['0']:
+            state0 = all_map['0'].pop()
+        if all_map['1']:
+            state1 = all_map['1'].pop()
+
+        for candidate in state_map.values():
+            if candidate['0'] and candidate['1']:
+                state0 = candidate['0'].pop()
+                state1 = candidate['1'].pop()
+
+        if state0 and state1:
+            assert '1' not in state0.old_tape
+            assert '0' not in state1.old_tape
+            state0.next1 = state1.next1
+            state0.write1 = state1.write1
+            state0.move1 = state1.move1
+            state0.old_tape = state0.old_tape | state1.old_tape
+            state1.next0 = state0.next0
+            state1.write0 = state0.write0
+            state1.move0 = state0.move0
+            state1.old_tape = state1.old_tape | state0.old_tape
+            return True
+        else:
+            return False
+
 
     def skip_noop_transitions(self):
         """Skip past state transitions that only return the tape head without updates or branching."""
