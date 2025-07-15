@@ -248,7 +248,7 @@ class MachineBuilder:
     # Quick=5: subroutines can cheat to the extent of storing non-integers
 
     def __init__(self, control_args):
-        self._nextreg = 0
+        self.nextreg = 0
         self._memos = {}
         self.control_args = control_args
 
@@ -280,25 +280,12 @@ class MachineBuilder:
         return entry
 
     @memo
-    def reg_init(self):
-        """Primitive subroutine which initializes a register.  Call this N
-        times before using registers less than N."""
-        return Subroutine(self.register_common().init, 0, 'reg_init')
-
-    @memo
     def register_common(self):
         """Primitive register operations start with the tape head on the first
         1 bit of a register, and exit by running back into the dispatcher."""
         (inc_shift_1, inc_shift_0, dec_init, dec_check, dec_scan_1,
          dec_scan_0, dec_scan_done, dec_shift_0, dec_shift_1, dec_restore,
-         return_0, return2_0, return_1, return2_1, init_f1, init_f2,
-         init_scan_1, init_scan_0) = (State() for i in range(18))
-
-        # Initialize routine
-        init_f1.be(move=1, next=init_f2, name='init.f1')
-        init_f2.be(move=1, next=init_scan_0, name='init.f2')
-        init_scan_1.be(move=1, next1=init_scan_1, next0=init_scan_0, name='init.scan_1') # only 0 is possible
-        init_scan_0.be(write0='1', move0=-1, next0=return_1, move1=1, next1=init_scan_1, name='init.scan_0')
+         return_0, return2_0, return_1, return2_1) = (State() for i in range(14))
 
         # Increment the register, the first 1 bit of which is under the tape head
         inc_shift_1.be(move=1, write='1', next0=inc_shift_0, next1=inc_shift_1, name='inc.shift_1')
@@ -324,7 +311,7 @@ class MachineBuilder:
         return_1.be(move=-1, next0=return_0, next1=return_1, name='return.1')
         return2_1.be(move=-1, next0=return2_0, next1=return2_1, name='return2.1')
 
-        return namedtuple('register_common', 'inc dec init')(inc_shift_1, dec_init, init_f1)
+        return namedtuple('register_common', 'inc dec')(inc_shift_1, dec_init)
 
     # Implementing the subroutine model
 
@@ -428,11 +415,8 @@ class MachineBuilder:
             parts = cfg_optimizer(parts)
 
         if name == 'main()':
-            # inject code to initialize registers (a bit of a hack)
-            regcount = self._nextreg
-            while regcount & (regcount - 1):
-                regcount += 1
-            parts = regcount * (self.reg_init(), ) + parts
+            # execution starts at PC 1. Inject noop
+            parts = (self.noop(0), ) + parts
 
         for part in parts:
             if isinstance(part, Label):
@@ -514,8 +498,8 @@ class MachineBuilder:
     @memo
     def register(self, name):
         """Assigns a name to a register, and creates the primitive inc/dec routines."""
-        index = self._nextreg
-        self._nextreg += 1
+        index = self.nextreg
+        self.nextreg += 1
         pad = 0
 
         inc = Subroutine(self.reg_incr(index), 0, 'reg_incr('+name+')')
@@ -558,7 +542,54 @@ class Machine:
             assert False
 
         self.builder.dispatchroot().clone(self.main.entry)
-        self.entry = self.builder.dispatch_order(self.builder.pc_bits, 0).next0
+        if self.builder.nextreg < 21:
+            # The following 5 state TM will initialize 19 empty registers (+ junk at the end)
+            # then transition inc to create the 20th register
+
+            state0 = State()
+            state1 = State()
+            state2 = State()
+            state3 = State()
+            state4 = State()
+
+            state0.be(write0='1', move0=-1, next0=state1, write1='1', move1=-1, next1=state0, name='0')
+            state1.be(write0='1', move0=-1, next0=state2, write1='1', move1=-1, next1=state4, name='1')
+            state2.be(write0='1', move0=+1, next0=state3, write1='0', move1=+1, next1=state0, name='2')
+            state3.be(write0='1', move0=+1, next0=state0, write1='1', move1=+1, next1=state3, name='3')
+            state4.be(write0='0', move0=-1, next0=self.builder.register_common().inc, write1='0', move1=-1, next1=state1, name='4')
+
+            self.entry = state0
+        elif self.builder.nextreg < 121:
+            # The following 6 state TM will initialize 119 empty registers,
+            # then transition to inc to create the 120th register
+
+            state0 = State()
+            state1 = State()
+            state2 = State()
+            state3 = State()
+            state4 = State()
+            state5 = State()
+
+            state0.be(write0='1', move0=-1, next0=state4, write1='1', move1=-1, next1=state0, name='0')
+            state1.be(write0='1', move0=-1, next0=state5, write1='0', move1=+1, next1=state2, name='1')
+            state2.be(write0='1', move0=+1, next0=state4, write1='1', move1=+1, next1=state1, name='2')
+            state3.be(write0='1', move0=-1, next0=state0, write1='1', move1=+1, next1=state3, name='3')
+            state4.be(write0='1', move0=+1, next0=state1, write1='1', move1=+1, next1=state3, name='4')
+            state5.be(write0='0', move0=-1, next0=self.builder.register_common().inc, write1='0', move1=-1, next1=state1, name='5')
+
+            self.entry = state0
+        else:
+            # Let's just do it the simple way.
+            regend = self.builder.register_common().inc.next0
+
+            for i in reversed(range(self.builder.nextreg)):
+                reginit = State()
+                reginit.be(write = '1', move=-1, next=regend, name=str(i) + '.reg.init')
+                regend = State()
+                regend.be(write = '0', move=-1, next=reginit, name=str(i) + '.reg.end')
+
+            self.entry = reginit
+
 
         self.state = self.entry
         self.left_tape = []
