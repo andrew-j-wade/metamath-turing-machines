@@ -398,6 +398,7 @@ proc safety(p1, p2){
 }
 
 proc main() {
+    align_1();
     if (decz prooflist) {
         prooflist = nextproof;
         nextproof = nextproof + 1;
