@@ -327,9 +327,9 @@ proc unpair(out1, out2, in) {
 proc pushwff() { pair(wffstack, topwff, wffstack); }
 proc v_0_() { pushwff(); topwff = topwff + 0; }
 proc v_1_() { pushwff(); topwff = topwff + 1; }
-proc v_2_() { pushwff(); topwff = topwff + 2; }
-proc v_3_() { pushwff(); topwff = topwff + 3; }
-proc v_4_() { pushwff(); topwff = topwff + 4; }
+proc v_2_() { pushwff(); topwff = topwff + 1; align_3(); topwff = topwff + 1; }
+proc v_3_() { pushwff(); topwff = topwff + 1; align_3(); topwff = topwff + 1; align_3(); topwff = topwff + 1; }
+proc v_4_() { pushwff(); topwff = topwff + 1; align_3(); topwff = topwff + 1; align_3(); topwff = topwff + 1;  align_3(); topwff = topwff + 1; }
 
 /* from the bb(745) paper */
 proc cons() { unpair(t2, wffstack, wffstack); pair(topwff, topwff, t2); }
@@ -568,7 +568,7 @@ proc main() {
     /* E. y ( A. z ( ( z e. x -> ( E. x A. y P -> z e. y ) ) /\ ( z e. y -> E. x P ) ) /\ A. x ( x e. y -> A. z ( A. y P -> E. z ( z e. y /\ P ) ) ) ) */
 
     v_1(); v_2(); v_2(); v_0(); wel(); v_0(); v_1(); par1(); wal(); wex(); v_2(); v_1(); wel(); wim(); wim();
-    v_2(); v_1(); wel(); v_0(); par1(); wex(); wim(); wa();
+    v_2(); v_1(); wel(); v_0(); align_8(); par1(); wex(); wim(); wa();
     wal(); v_0(); v_0(); v_1(); wel(); v_2(); v_1(); par1(); wal();
     v_2(); v_2(); v_1(); wel(); par1(); wa(); wex(); wim(); wal(); wim(); wal(); wa(); wex();
     select();
